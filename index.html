@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0c10" />
+<meta name="description" content="Ignite — To-Do List harian dengan streak, heatmap, dan motivasi." />
+<title>Ignite — To-Do List Harian</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand"><span class="dot"></span>Ig<span>nite</span></div>
+    <div class="streak" title="Selesaikan minimal 1 tugas/hari untuk menjaga api">
+      <span class="flame">🔥</span>
+      <div><span id="streakCount">0</span> hari <small>streak</small></div>
+    </div>
+  </header>
+
+  <section class="profile">
+    <div class="avatar-wrap">
+      <img id="avatarImg" class="avatar" alt="Foto Profil" />
+      <button class="avatar-edit" id="avatarBtn" title="Ganti foto profil">📷</button>
+      <input type="file" id="avatarInput" accept="image/*" hidden />
+    </div>
+    <div class="profile-info">
+      <h2><span id="userName">Pejuang Harian</span> <span class="badge" id="userLevel">LV 1</span></h2>
+      <p class="bio" id="userBio">Menuju versi terbaik dari diri sendiri, satu tugas setiap hari.</p>
+      <span class="goal">🎯 Target harian: <b id="userGoal">3</b> tugas</span>
+    </div>
+    <button class="edit-profile" id="editProfileBtn">✏️ Edit</button>
+  </section>
+
+  <section class="support">
+    <img id="supportImg" alt="Support System" />
+    <button class="change-btn" id="supportBtn">🖼️ Ganti Banner</button>
+    <input type="file" id="supportInput" accept="image/*" hidden />
+    <div class="overlay">
+      <small>Support System</small>
+      <p id="supportText">Kamu tidak sendiri. Setiap langkah kecilmu berarti.</p>
+    </div>
+  </section>
+
+  <div class="quote" id="quote">Mulai dari yang kecil, konsisten tiap hari.</div>
+
+  <div class="progress-box">
+    <h3>Progres Bulan Ini</h3>
+    <div class="bar"><div id="progressBar"></div></div>
+    <div class="progress-meta">
+      <span id="progressText">0 tugas selesai</span>
+      <span id="progressPercent">0%</span>
+    </div>
+  </div>
+
+  <div class="heatmap-box">
+    <div class="hm-head">
+      <h3 id="hmTitle">Aktivitas Bulanan</h3>
+      <div class="hm-nav">
+        <button id="hmPrev" title="Bulan sebelumnya">‹</button>
+        <button id="hmNext" title="Bulan berikutnya">›</button>
+      </div>
+    </div>
+    <div class="hm-grid" id="hmGrid"></div>
+    <div class="hm-legend">
+      <span>Sedikit</span>
+      <span class="sw sw0"></span>
+      <span class="sw sw1"></span>
+      <span class="sw sw2"></span>
+      <span class="sw sw3"></span>
+      <span class="sw sw4"></span>
+      <span>Banyak</span>
+    </div>
+  </div>
+
+  <form class="add" id="addForm">
+    <input id="taskInput" type="text" placeholder="Tulis tugas baru..." maxlength="120" required />
+    <button type="submit">+ Tambah</button>
+  </form>
+
+  <ul class="tasks" id="taskList"></ul>
+  <div class="empty" id="emptyState">Belum ada tugas. Mulai kecil hari ini 💪</div>
+
+  <div class="notif-box">
+    <div class="info">
+      <b>Pengingat harian</b><br/>
+      <span id="notifStatus">Belum aktif</span>
+    </div>
+    <div class="notif-controls">
+      <input type="time" id="notifTime" value="20:00" />
+      <button id="notifBtn">Aktifkan</button>
+      <button id="notifTest" class="ghost" title="Coba kirim notifikasi">Tes</button>
+    </div>
+  </div>
+
+  <footer>Ignite — <b>konsisten</b> lebih penting dari sempurna</footer>
+</div>
+
+<div class="modal" id="profileModal">
+  <div class="modal-card">
+    <h3>Edit Profil</h3>
+    <label>Nama</label>
+    <input type="text" id="inputName" maxlength="30" />
+    <label>Bio singkat</label>
+    <textarea id="inputBio" maxlength="120"></textarea>
+    <label>Target tugas / hari</label>
+    <input type="text" id="inputGoal" inputmode="numeric" maxlength="3" />
+    <label>Teks Support System</label>
+    <textarea id="inputSupportText" maxlength="120"></textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cancelProfile">Batal</button>
+      <button class="btn-primary" id="saveProfile">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
