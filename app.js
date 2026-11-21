@@ -1,355 +1,528 @@
-(function(){
-  'use strict';
-  const STORE_KEY = 'ignite_v4';
-  const QUOTES = [
-    "Mulai dari yang kecil, konsisten tiap hari.",
-    "Disiplin adalah jembatan antara tujuan dan pencapaian.",
-    "Fokus pada proses, hasil akan mengikuti.",
-    "Hari ini satu langkah, besok dua langkah.",
-    "Api kecil yang dijaga lebih baik dari api besar yang padam.",
-    "Kamu tidak harus sempurna, cukup hadir dan kerjakan.",
-    "Konsistensi mengalahkan motivasi sesaat.",
-    "Satu tugas selesai hari ini = satu kemenangan.",
-    "Jangan tunggu semangat, mulailah maka semangat datang.",
-    "Progress 1% tiap hari = 37x lebih baik setahun."
-  ];
+/* ==========================================
+   DELVINO - MASTER LOGIC FINAL (ALL-IN-ONE)
+   ========================================== */
 
-  const DEFAULT_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>" +
-    "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
-    "<stop offset='0' stop-color='#ff8a00'/><stop offset='1' stop-color='#ff3d00'/>" +
-    "</linearGradient></defs>" +
-    "<rect width='100' height='100' fill='#171922'/>" +
-    "<circle cx='50' cy='38' r='16' fill='url(#g)'/>" +
-    "<path d='M20 90 Q50 60 80 90 Z' fill='url(#g)' opacity='0.85'/>" +
-    "</svg>");
+const DB_NAME = 'finora_db'; // Tetap pakai ini agar data lama tidak hilang
+const DB_VERSION = 2;
+let db;
 
-  const DEFAULT_SUPPORT = "data:image/svg+xml;utf8," + encodeURIComponent(
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240'>" +
-    "<defs>" +
-    "<linearGradient id='b' x1='0' y1='0' x2='1' y2='1'>" +
-    "<stop offset='0' stop-color='#2a1508'/><stop offset='0.5' stop-color='#3d1408'/><stop offset='1' stop-color='#1a0a06'/>" +
-    "</linearGradient>" +
-    "<radialGradient id='r' cx='0.2' cy='0.1' r='0.8'>" +
-    "<stop offset='0' stop-color='#ff8a00' stop-opacity='0.35'/>" +
-    "<stop offset='1' stop-color='#ff3d00' stop-opacity='0'/>" +
-    "</radialGradient>" +
-    "</defs>" +
-    "<rect width='800' height='240' fill='url(#b)'/>" +
-    "<rect width='800' height='240' fill='url(#r)'/>" +
-    "<text x='40' y='140' font-family='Segoe UI,sans-serif' font-size='90' fill='#ff8a00' opacity='0.35'>🔥</text>" +
-    "<text x='160' y='140' font-family='Segoe UI,sans-serif' font-size='90' fill='#ff3d00' opacity='0.2'>💪</text>" +
-    "</svg>");
+// --- UTILS ---
+const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
+const todayStr = () => new Date().toISOString().split('T')[0];
 
-  const todayStr = () => new Date().toISOString().slice(0,10);
-  const monthStr = (d) => { d = d || new Date(); return d.toISOString().slice(0,7); };
+const showToast = (msg, type = 'success') => {
+  const container = document.getElementById('toast-container');
+  if(!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = (type === 'success' ? '✅ ' : '❌ ') + msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.classList.add('hide'); setTimeout(() => toast.remove(), 300); }, 3000);
+};
 
-  let state = load();
-  let hmCursor = new Date(); hmCursor.setDate(1);
+const formatInputRupiah = (input) => {
+  let val = input.value.replace(/[^0-9]/g, '');
+  if (val) input.value = new Intl.NumberFormat('id-ID').format(val);
+};
 
-  function defaults(){
-    return {
-      tasks:[], streak:0, lastDoneDate:null,
-      monthKey: monthStr(), monthDone:0,
-      quoteDate:null, quoteIdx:0,
-      history:{},
-      notif:{ enabled:false, time:'20:00', lastSent:null },
-      user:{ name:'Pejuang Harian', bio:'Menuju versi terbaik dari diri sendiri, satu tugas setiap hari.', goal:3, level:1, avatar:DEFAULT_AVATAR },
-      support:{ img:DEFAULT_SUPPORT, text:'Kamu tidak sendiri. Setiap langkah kecilmu berarti.' }
+// --- DATA QUOTES & AYAT ---
+const QUOTES = [
+  "Disiplin kecil setiap hari mengalahkan rencana besar yang tak pernah dimulai.",
+  "Uang adalah alat yang baik jika kamu yang mengendalikannya.",
+  "Masa depanmu dibangun oleh apa yang kamu lakukan hari ini.",
+  "Jangan menabung dari sisa belanja, tapi belanjalah dari sisa tabungan.",
+  "Setiap rupiah yang kamu catat adalah langkah menuju kebebasan finansial.",
+  "Investasi terbaik adalah pada dirimu sendiri."
+];
+
+const AYAHS = [
+  { text: "وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ", translation: "Dan barangsiapa bertakwa kepada Allah, niscaya Dia akan mengadakan jalan keluar baginya. Dan memberinya rezeki dari arah yang tidak disangka-sangkanya.", source: "QS. At-Talaq: 2-3" },
+  { text: "وَمَا مِن دَابَّةٍ فِي الْأَرْضِ إِلَّا عَلَى اللَّهِ رِزْقُهَا", translation: "Dan tidak ada satupun makhluk bergerak (bernyawa) di bumi melainkan semuanya dijamin Allah rezekinya.", source: "QS. Hud: 6" },
+  { text: "إِنَّ اللَّهَ هُوَ الرَّزَّاقُ ذُو الْقُوَّةِ الْمَتِينُ", translation: "Sungguh, Allah Dialah Yang Maha Pemberi rezeki, Yang mempunyai kekuatan, Yang sangat kokoh.", source: "QS. Az-Zariyat: 58" },
+  { text: "وَاللَّهُ يَرْزُقُ مَن يَشَاءُ بِغَيْرِ حِسَابٍ", translation: "Dan Allah memberi rezeki kepada siapa yang Dia kehendaki tanpa perhitungan.", source: "QS. Al-Baqarah: 212" },
+  { text: "فَابْتَغُوا عِندَ اللَّهِ الرِّزْقَ وَاعْبُدُوهُ وَاشْكُرُوا لَهُ", translation: "Maka carilah rezeki di sisi Allah, dan sembahlah Dia, dan bersyukurlah kepada-Nya.", source: "QS. Al-Ankabut: 17" }
+];
+
+// --- KATEGORI ---
+const INCOME_CATS = ['Uang saku', 'Gaji', 'Hadiah', 'Hasil usaha', 'Freelance', 'Pemasukan lainnya'];
+const EXPENSE_CATS = ['Makanan pribadi', 'Transportasi', 'Pendidikan', 'Kesehatan', 'Perawatan diri', 'Belanja keluarga', 'Tagihan', 'Hiburan', 'Nongkrong', 'Hobi', 'Keinginan lainnya'];
+
+// --- INIT DB ---
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (!db.objectStoreNames.contains('transactions')) db.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains('goals')) db.createObjectStore('goals', { keyPath: 'slot' });
+      if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('docs')) db.createObjectStore('docs', { keyPath: 'id', autoIncrement: true });
     };
+    req.onsuccess = (e) => { db = e.target.result; resolve(); };
+    req.onerror = (e) => reject(e);
+  });
+};
+
+const dbGetAll = (store) => new Promise((res) => { const r = db.transaction(store, 'readonly').objectStore(store).getAll(); r.onsuccess = () => res(r.result); });
+const dbPut = (store, data) => new Promise((res) => { const r = db.transaction(store, 'readwrite').objectStore(store).put(data); r.onsuccess = () => res(r.result); });
+const dbAdd = (store, data) => new Promise((res) => { const r = db.transaction(store, 'readwrite').objectStore(store).add(data); r.onsuccess = () => res(r.result); });
+const dbDelete = (store, id) => new Promise((res) => { const r = db.transaction(store, 'readwrite').objectStore(store).delete(id); r.onsuccess = () => res(); });
+const dbClear = (store) => new Promise((res) => { const r = db.transaction(store, 'readwrite').objectStore(store).clear(); r.onsuccess = () => res(); });
+
+// --- UI NAVIGASI ---
+const nav = (view) => {
+  document.querySelectorAll('.view').forEach(v => { v.classList.remove('active'); v.style.display = 'none'; });
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
+  const targetView = document.getElementById('view-' + view);
+  if(targetView) { targetView.classList.add('active'); targetView.style.display = 'block'; }
+  
+  const targetBtn = document.querySelector(`.nav-btn[data-view="${view}"]`);
+  if(targetBtn) targetBtn.classList.add('active');
+  
+  if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+};
+
+const toggleMenu = () => document.getElementById('sidebar').classList.toggle('open');
+const toggleTheme = () => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; };
+const openModal = (id) => document.getElementById('modal-' + id).classList.add('open');
+const closeModal = (id) => document.getElementById('modal-' + id).classList.remove('open');
+
+// --- FUNGSI PEMUAT QUOTES & AYAT ---
+const loadDailyQuote = () => {
+  const dayIndex = Math.floor(Date.now() / 86400000) % QUOTES.length;
+  const quoteEl = document.getElementById('daily-quote');
+  if (quoteEl) quoteEl.textContent = `"${QUOTES[dayIndex]}"`;
+};
+
+const loadAyatAman = () => {
+  try {
+    const elText = document.getElementById('daily-ayat');
+    if (!elText) return; 
+    
+    const dayIndex = Math.floor(Date.now() / 86400000) % AYAHS.length;
+    const ayatData = AYAHS[dayIndex];
+    
+    elText.textContent = ayatData.text;
+    document.getElementById('daily-ayat-translation').textContent = `"${ayatData.translation}"`;
+    document.getElementById('daily-ayat-source').textContent = `- ${ayatData.source}`;
+  } catch (error) {
+    console.warn("Ayat tidak tampil:", error);
   }
-  function load(){
-    try{
-      const raw = JSON.parse(localStorage.getItem(STORE_KEY));
-      if(raw){
-        const d = defaults();
-        return {
-          ...d, ...raw,
-          user: {...d.user, ...(raw.user||{})},
-          support: {...d.support, ...(raw.support||{})},
-          notif: {...d.notif, ...(raw.notif||{})},
-          history: raw.history || {},
-          tasks: Array.isArray(raw.tasks) ? raw.tasks : []
-        };
-      }
-    }catch(e){}
-    return defaults();
-  }
-  function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+};
 
-  if(state.monthKey !== monthStr()){ state.monthKey = monthStr(); state.monthDone = 0; }
-  if(state.quoteDate !== todayStr()){ state.quoteDate = todayStr(); state.quoteIdx = Math.floor(Math.random()*QUOTES.length); }
+// --- LOGIKA RENDER UTAMA ---
+const renderAll = async () => {
+  const txs = await dbGetAll('transactions');
+  const goals = await dbGetAll('goals');
+  const settings = await dbGetAll('settings');
+  const docs = await dbGetAll('docs');
 
-  const $ = (id) => document.getElementById(id);
-  const list = $('taskList'), empty = $('emptyState'), input = $('taskInput');
+  let inc = 0, exp = 0;
+  txs.forEach(t => t.type === 'income' ? inc += t.amount : exp += t.amount);
+  const balance = inc - exp;
+  const savingsRate = inc > 0 ? ((balance / inc) * 100).toFixed(1) : 0;
 
-  function renderProfile(){
-    $('avatarImg').src = state.user.avatar || DEFAULT_AVATAR;
-    $('userName').textContent = state.user.name || 'Pejuang Harian';
-    $('userBio').textContent = state.user.bio || '-';
-    $('userGoal').textContent = state.user.goal || 3;
-    const lv = Math.max(1, Math.floor(state.streak/3)+1);
-    state.user.level = lv;
-    $('userLevel').textContent = 'LV ' + lv;
-  }
-  function renderSupport(){
-    $('supportImg').src = state.support.img || DEFAULT_SUPPORT;
-    $('supportText').textContent = state.support.text || '';
-  }
-  function renderQuote(){ $('quote').textContent = QUOTES[state.quoteIdx]; }
+  document.getElementById('d-bal').textContent = fmt(balance);
+  document.getElementById('d-inc').textContent = fmt(inc);
+  document.getElementById('d-exp').textContent = fmt(exp);
+  document.getElementById('d-rate').textContent = `${savingsRate}%`;
 
-  function render(){
-    list.innerHTML = '';
-    empty.style.display = state.tasks.length ? 'none' : 'block';
-    state.tasks.forEach(function(t){
-      const li = document.createElement('li');
-      li.className = 'task' + (t.done ? ' done' : '');
+  const sup = settings.find(s => s.key === 'support')?.value || {};
+  document.getElementById('dash-support').innerHTML = sup.img ? `
+    <img src="${sup.img}" class="avatar">
+    <div>
+      <h4 style="margin:0;font-family:var(--font-heading)">${sup.name || 'Support System'}</h4>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:4px">"${sup.msg || 'Terus bertumbuh!'}"</p>
+    </div>
+  ` : '<p style="color:var(--text-muted)">Belum ada foto support system.</p>';
 
-      const check = document.createElement('button');
-      check.type = 'button';
-      check.className = 'check' + (t.done ? ' checked' : '');
-      check.setAttribute('aria-label','Tandai selesai');
-      check.addEventListener('click', function(){ toggleTask(t.id); });
+  txs.sort((a,b) => new Date(b.date) - new Date(a.date));
+  document.getElementById('tx-list').innerHTML = txs.length === 0 ? '<tr><td colspan="5" style="text-align:center">Belum ada data.</td></tr>' : 
+    txs.map(t => `
+      <tr>
+        <td>${t.date}</td>
+        <td><strong>${t.name}</strong></td>
+        <td>${t.category}</td>
+        <td style="color:${t.type==='income'?'var(--success)':'var(--danger)'};font-weight:700">${t.type==='income'?'+':'-'}${fmt(t.amount)}</td>
+        <td style="text-align:right">
+          <button class="btn btn-ghost" onclick="editTx(${t.id})" style="padding:6px 12px;font-size:12px">Edit</button>
+          <button class="btn btn-danger" onclick="hapusTx(${t.id})" style="padding:6px 12px;font-size:12px">Hapus</button>
+        </td>
+      </tr>
+    `).join('');
 
-      const title = document.createElement('span');
-      title.className = 'title';
-      title.textContent = t.text;
-
-      const actions = document.createElement('div');
-      actions.className = 'actions';
-
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'icon-btn';
-      editBtn.textContent = '✏️';
-      editBtn.title = 'Edit';
-      editBtn.addEventListener('click', function(){ editTask(t.id); });
-
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'icon-btn del';
-      delBtn.textContent = '🗑️';
-      delBtn.title = 'Hapus';
-      delBtn.addEventListener('click', function(){ deleteTask(t.id); });
-
-      actions.appendChild(editBtn);
-      actions.appendChild(delBtn);
-      li.appendChild(check);
-      li.appendChild(title);
-      li.appendChild(actions);
-      list.appendChild(li);
-    });
-    updateProgress();
-    updateStreakUI();
-    renderHeatmap();
-    save();
-  }
-
-  function updateProgress(){
-    const total = state.tasks.length;
-    const done = state.tasks.filter(function(t){ return t.done; }).length;
-    const pct = total ? Math.round(done/total*100) : 0;
-    $('progressBar').style.width = pct + '%';
-    $('progressText').textContent = done + ' / ' + total + ' tugas selesai';
-    $('progressPercent').textContent = pct + '%';
-  }
-  function updateStreakUI(){ $('streakCount').textContent = state.streak; }
-
-  function levelFor(n){
-    if(!n) return 'l0';
-    if(n >= 6) return 'l4';
-    if(n >= 4) return 'l3';
-    if(n >= 2) return 'l2';
-    return 'l1';
-  }
-  function renderHeatmap(){
-    const grid = $('hmGrid');
-    grid.innerHTML = '';
-    const y = hmCursor.getFullYear(), m = hmCursor.getMonth();
-    $('hmTitle').textContent = 'Aktivitas ' + hmCursor.toLocaleString('id-ID',{month:'long', year:'numeric'});
-    const days = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-    days.forEach(function(d){
-      const el = document.createElement('div');
-      el.className = 'hm-dow';
-      el.textContent = d;
-      grid.appendChild(el);
-    });
-    const first = new Date(y, m, 1);
-    const startDay = first.getDay();
-    for(let i=0;i<startDay;i++){
-      const blank = document.createElement('div');
-      blank.className = 'hm-cell empty';
-      grid.appendChild(blank);
-    }
-    const last = new Date(y, m+1, 0).getDate();
-    const today = todayStr();
-    for(let d=1; d<=last; d++){
-      const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-      const n = state.history[dateStr] || 0;
-      const cell = document.createElement('div');
-      cell.className = 'hm-cell ' + levelFor(n) + (dateStr === today ? ' today' : '');
-      cell.textContent = d;
-      cell.title = dateStr + ': ' + n + ' tugas selesai';
-      grid.appendChild(cell);
-    }
-  }
-  $('hmPrev').addEventListener('click', function(){ hmCursor.setMonth(hmCursor.getMonth()-1); renderHeatmap(); });
-  $('hmNext').addEventListener('click', function(){ hmCursor.setMonth(hmCursor.getMonth()+1); renderHeatmap(); });
-
-  function addTask(text){
-    state.tasks.push({ id: Date.now() + Math.random(), text: text.trim(), done:false, created: todayStr() });
-    render();
-  }
-  function toggleTask(id){
-    const t = state.tasks.find(function(x){ return x.id === id; });
-    if(!t) return;
-    t.done = !t.done;
-    const today = todayStr();
-    if(t.done){
-      state.monthDone++;
-      state.history[today] = (state.history[today] || 0) + 1;
-      if(state.lastDoneDate !== today){
-        const y = new Date(); y.setDate(y.getDate()-1);
-        const yesterday = y.toISOString().slice(0,10);
-        state.streak = (state.lastDoneDate === yesterday) ? state.streak + 1 : 1;
-        state.lastDoneDate = today;
-      }
+  let goalHtml = '', dashGoalHtml = 'Belum ada goal.';
+  for(let i=1; i<=4; i++) {
+    const g = goals.find(x => x.slot === i);
+    if(g) {
+      const pct = Math.min((g.current / g.target) * 100, 100);
+      goalHtml += `
+      <div class="card">
+        <h3 style="font-family:var(--font-heading)">${g.title}</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Target: ${fmt(g.target)}</p>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:12px;font-weight:600">
+          <span>Terkumpul: ${fmt(g.current)}</span><strong style="color:var(--emerald)">${pct.toFixed(0)}%</strong>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-primary" style="flex:1" onclick="tambahDana(${i})">+ Dana</button>
+          <button class="btn btn-ghost" onclick="editGoal(${i})">Edit</button>
+        </div>
+      </div>`;
+      if(i===1) dashGoalHtml = `<strong style="font-family:var(--font-heading)">${g.title}</strong><br><span style="font-size:12px">${pct.toFixed(0)}% tercapai</span><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
     } else {
-      state.monthDone = Math.max(0, state.monthDone - 1);
-      state.history[today] = Math.max(0, (state.history[today] || 0) - 1);
-    }
-    renderProfile();
-    render();
-  }
-  function editTask(id){
-    const t = state.tasks.find(function(x){ return x.id === id; });
-    if(!t) return;
-    const val = prompt('Edit tugas:', t.text);
-    if(val !== null && val.trim() !== ''){ t.text = val.trim(); render(); }
-  }
-  function deleteTask(id){
-    state.tasks = state.tasks.filter(function(x){ return x.id !== id; });
-    render();
-  }
-
-  $('addForm').addEventListener('submit', function(e){
-    e.preventDefault();
-    if(input.value.trim()){ addTask(input.value); input.value = ''; }
-  });
-
-  $('avatarBtn').addEventListener('click', function(){ $('avatarInput').click(); });
-  $('avatarInput').addEventListener('change', function(e){
-    const file = e.target.files[0]; if(!file) return;
-    const r = new FileReader();
-    r.onload = function(ev){ state.user.avatar = ev.target.result; renderProfile(); save(); };
-    r.readAsDataURL(file);
-  });
-  $('supportBtn').addEventListener('click', function(){ $('supportInput').click(); });
-  $('supportInput').addEventListener('change', function(e){
-    const file = e.target.files[0]; if(!file) return;
-    const r = new FileReader();
-    r.onload = function(ev){ state.support.img = ev.target.result; renderSupport(); save(); };
-    r.readAsDataURL(file);
-  });
-
-  const modal = $('profileModal');
-  $('editProfileBtn').addEventListener('click', function(){
-    $('inputName').value = state.user.name || '';
-    $('inputBio').value = state.user.bio || '';
-    $('inputGoal').value = state.user.goal || 3;
-    $('inputSupportText').value = state.support.text || '';
-    modal.classList.add('show');
-  });
-  $('cancelProfile').addEventListener('click', function(){ modal.classList.remove('show'); });
-  $('saveProfile').addEventListener('click', function(){
-    const name = $('inputName').value.trim();
-    const bio = $('inputBio').value.trim();
-    const goal = Math.max(1, Math.min(99, parseInt($('inputGoal').value,10) || 3));
-    const sText = $('inputSupportText').value.trim();
-    if(name) state.user.name = name;
-    state.user.bio = bio;
-    state.user.goal = goal;
-    state.support.text = sText;
-    modal.classList.remove('show');
-    renderProfile(); renderSupport(); save();
-  });
-  modal.addEventListener('click', function(e){ if(e.target === modal) modal.classList.remove('show'); });
-
-  function updateNotifUI(){
-    $('notifTime').value = state.notif.time;
-    const st = $('notifStatus'), btn = $('notifBtn');
-    if(!('Notification' in window)){
-      st.textContent = 'Browser tidak mendukung notifikasi';
-      btn.disabled = true;
-      return;
-    }
-    if(state.notif.enabled && Notification.permission === 'granted'){
-      st.textContent = 'Aktif — pengingat jam ' + state.notif.time + ' (jika belum ada tugas selesai)';
-      btn.textContent = 'Matikan';
-      btn.classList.add('ghost');
-    } else {
-      st.textContent = 'Belum aktif';
-      btn.textContent = 'Aktifkan';
-      btn.classList.remove('ghost');
+      goalHtml += `<div class="card" style="text-align:center;padding:40px 20px"><p style="color:var(--text-muted)">Slot ${i} Kosong</p><button class="btn btn-primary" style="margin-top:12px" onclick="editGoal(${i})">Buat Goal</button></div>`;
     }
   }
-  $('notifTime').addEventListener('change', function(e){ state.notif.time = e.target.value; save(); updateNotifUI(); });
-  $('notifBtn').addEventListener('click', async function(){
-    if(state.notif.enabled){ state.notif.enabled = false; save(); updateNotifUI(); return; }
-    if(!('Notification' in window)){ alert('Browser tidak mendukung notifikasi'); return; }
-    const p = await Notification.requestPermission();
-    if(p === 'granted'){
-      state.notif.enabled = true;
-      save();
-      updateNotifUI();
-      sendNotif('Pengingat aktif 🔥', 'Kamu akan diingatkan setiap hari untuk menyelesaikan tugas.');
-    } else {
-      alert('Izin notifikasi ditolak');
-    }
-  });
-  $('notifTest').addEventListener('click', async function(){
-    if(!('Notification' in window)){ alert('Browser tidak mendukung notifikasi'); return; }
-    if(Notification.permission !== 'granted'){
-      const p = await Notification.requestPermission();
-      if(p !== 'granted'){ alert('Izin notifikasi ditolak'); return; }
-    }
-    sendNotif('Tes notifikasi 🔥', 'Ini contoh pengingat harianmu.');
-  });
-  function sendNotif(title, body){
-    try{
-      if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
-        navigator.serviceWorker.getRegistration().then(function(reg){
-          if(reg && reg.showNotification) reg.showNotification(title, { body: body, icon: 'icon.svg', badge: 'icon.svg' });
-          else new Notification(title, { body: body, icon: 'icon.svg' });
-        }).catch(function(){ new Notification(title, { body: body, icon: 'icon.svg' }); });
-      } else {
-        new Notification(title, { body: body, icon: 'icon.svg' });
-      }
-    }catch(e){}
-  }
-  setInterval(function(){
-    if(!state.notif.enabled) return;
-    if(!('Notification' in window) || Notification.permission !== 'granted') return;
-    const now = new Date();
-    const hhmm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    if(hhmm !== state.notif.time) return;
-    if(state.notif.lastSent === todayStr()) return;
-    const doneToday = state.history[todayStr()] || 0;
-    if(doneToday > 0) return;
-    state.notif.lastSent = todayStr();
-    save();
-    sendNotif('Belum ada tugas selesai hari ini 🔥', 'Yuk selesaikan minimal satu tugas untuk menjaga streak-mu!');
-  }, 30000);
+  document.getElementById('goals-container').innerHTML = goalHtml;
+  document.getElementById('dash-goal').innerHTML = dashGoalHtml;
 
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('sw.js').catch(function(){});
-    });
+  document.getElementById('doc-gallery').innerHTML = docs.length === 0 ? '<p style="color:var(--text-muted)">Belum ada foto dokumentasi.</p>' :
+    docs.map(d => `<div><img src="${d.img}"><p style="font-size:12px;text-align:center;margin-top:8px;font-weight:600">${d.title}</p></div>`).join('');
+
+  const prof = settings.find(s => s.key === 'profile')?.value || {};
+  document.getElementById('prof-name').value = prof.name || '';
+  document.getElementById('prof-bio').value = prof.bio || '';
+  if(prof.img) document.getElementById('prof-avatar').innerHTML = `<img src="${prof.img}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+  document.getElementById('sup-name').value = sup.name || '';
+  document.getElementById('sup-msg').value = sup.msg || '';
+  if(sup.img) document.getElementById('sup-avatar').innerHTML = `<img src="${sup.img}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+
+  renderChart(txs);
+  renderAnalisis(txs);
+};
+
+// --- FITUR QUICK ADD DANA GOAL ---
+const tambahDana = async (slot) => {
+  const nominal = prompt('Masukkan nominal dana yang ingin ditambahkan (Contoh: 500000):');
+  if(!nominal || isNaN(nominal.replace(/\./g,''))) return;
+  
+  const goals = await dbGetAll('goals');
+  const g = goals.find(x => x.slot === slot);
+  if(g) {
+    g.current += parseInt(nominal.replace(/\./g,''));
+    await dbPut('goals', g);
+    showToast('Dana target berhasil ditambahkan!');
+    renderAll();
+  }
+};
+
+// --- GRAFIK VISUAL CANVAS ---
+const renderChart = (txs) => {
+  const canvas = document.getElementById('myChart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const catMap = {};
+  txs.filter(t => t.type === 'expense').forEach(t => catMap[t.category] = (catMap[t.category] || 0) + t.amount);
+  
+  const entries = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0, 4);
+  const maxVal = Math.max(...entries.map(e => e[1]), 1);
+
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = 250;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if(entries.length === 0) {
+    ctx.fillStyle = '#888'; ctx.font = '14px Plus Jakarta Sans'; ctx.textAlign = 'center';
+    ctx.fillText('Belum ada data pengeluaran', canvas.width/2, canvas.height/2);
+    return;
   }
 
-  renderProfile();
-  renderSupport();
-  renderQuote();
-  updateNotifUI();
-  render();
-})();
+  const barWidth = 40;
+  const gap = (canvas.width - (entries.length * barWidth)) / (entries.length + 1);
+  const isDark = document.documentElement.dataset.theme === 'dark';
+
+  entries.forEach(([cat, val], index) => {
+    const x = gap + index * (barWidth + gap);
+    const barHeight = (val / maxVal) * 150;
+    const y = 200 - barHeight;
+
+    const gradient = ctx.createLinearGradient(0, y, 0, 200);
+    gradient.addColorStop(0, '#3B82F6'); // Biru Primary
+    gradient.addColorStop(1, '#60A5FA');
+    ctx.fillStyle = gradient;
+    
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, barHeight, [8, 8, 0, 0]);
+    ctx.fill();
+
+    ctx.fillStyle = isDark ? '#A6B0A8' : '#5A6660';
+    ctx.font = '11px Plus Jakarta Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText(cat.length > 10 ? cat.substring(0,8)+'...' : cat, x + barWidth/2, 220);
+
+    ctx.fillStyle = isDark ? '#EDF1EC' : '#1F2421';
+    ctx.font = 'bold 11px Plus Jakarta Sans';
+    ctx.fillText(val >= 1000000 ? (val/1000000).toFixed(1)+'Jt' : (val/1000).toFixed(0)+'Rb', x + barWidth/2, y - 10);
+  });
+};
+
+// --- ANALISIS ---
+let currentPeriod = 'month';
+const setPeriod = (p) => {
+  currentPeriod = p;
+  document.querySelectorAll('.filter-stat').forEach(btn => btn.classList.remove('active'));
+  
+  const btnWeek = document.querySelector("button[onclick=\"setPeriod('week')\"]");
+  const btnMonth = document.querySelector("button[onclick=\"setPeriod('month')\"]");
+  const btnYear = document.querySelector("button[onclick=\"setPeriod('year')\"]");
+  
+  if (p === 'week' && btnWeek) btnWeek.classList.add('active');
+  if (p === 'month' && btnMonth) btnMonth.classList.add('active');
+  if (p === 'year' && btnYear) btnYear.classList.add('active');
+
+  dbGetAll('transactions').then(renderAnalisis);
+};
+
+const renderAnalisis = (txs) => {
+  const now = new Date();
+  let startCurrent, startLast, label = "";
+  let thisInc=0, thisExp=0, lastInc=0, lastExp=0;
+
+  if (currentPeriod === 'week') {
+    const day = now.getDay() || 7; 
+    startCurrent = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+    startLast = new Date(startCurrent); startLast.setDate(startLast.getDate() - 7);
+    label = "Minggu Ini vs Minggu Lalu";
+  } else if (currentPeriod === 'month') {
+    startCurrent = new Date(now.getFullYear(), now.getMonth(), 1);
+    startLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    label = "Bulan Ini vs Bulan Lalu";
+  } else {
+    startCurrent = new Date(now.getFullYear(), 0, 1);
+    startLast = new Date(now.getFullYear() - 1, 0, 1);
+    label = "Tahun Ini vs Tahun Lalu";
+  }
+
+  const formatDateStr = (d) => d.toISOString().split('T')[0];
+  const strCur = formatDateStr(startCurrent), strLast = formatDateStr(startLast), strNow = formatDateStr(now);
+
+  txs.forEach(t => {
+    if (t.date >= strCur && t.date <= strNow) { if(t.type==='income') thisInc+=t.amount; else thisExp+=t.amount; }
+    else if (t.date >= strLast && t.date < strCur) { if(t.type==='income') lastInc+=t.amount; else lastExp+=t.amount; }
+  });
+
+  let html = '';
+  if(lastInc === 0 && lastExp === 0) {
+    html = `<p style="color:var(--text-muted)">Belum cukup data pada periode sebelumnya untuk membuat perbandingan.</p>`;
+  } else {
+    const incChange = lastInc === 0 ? 100 : ((thisInc - lastInc) / lastInc) * 100;
+    const expChange = lastExp === 0 ? 100 : ((thisExp - lastExp) / lastExp) * 100;
+    
+    let status = "Stabil", color = "var(--info)";
+    if (incChange > expChange && incChange > 0) { status = "Membaik (Positif)"; color = "var(--success)"; }
+    else if (expChange > incChange && expChange > 0) { status = "Memburuk (Waspada)"; color = "var(--danger)"; }
+
+    html = `
+      <div style="background:var(--surface-2);padding:20px;border-radius:var(--r-md);margin-bottom:20px;border-left:4px solid ${color}">
+        <h4 style="color:${color};margin-bottom:8px;font-family:var(--font-heading)">Status: ${status}</h4>
+        <p style="font-size:13px;line-height:1.6">Bandingkan dengan periode sebelumnya, pemasukanmu <strong>${incChange > 0 ? 'naik' : 'turun'} ${Math.abs(incChange).toFixed(1)}%</strong>, sementara pengeluaran <strong>${expChange > 0 ? 'naik' : 'turun'} ${Math.abs(expChange).toFixed(1)}%</strong>.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="font-size:13px"><span style="color:var(--text-muted)">Pemasukan (Periode Ini):</span><br><strong style="color:var(--success);font-size:16px">${fmt(thisInc)}</strong></div>
+        <div style="font-size:13px"><span style="color:var(--text-muted)">Pengeluaran (Periode Ini):</span><br><strong style="color:var(--danger);font-size:16px">${fmt(thisExp)}</strong></div>
+      </div>
+    `;
+  }
+  document.getElementById('stat-conclusion').innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;font-weight:600">${label}</div>` + html;
+};
+
+// --- CRUD TRANSAKSI ---
+const updateCat = () => {
+  const type = document.getElementById('tx-type').value;
+  document.getElementById('tx-cat').innerHTML = (type === 'income' ? INCOME_CATS : EXPENSE_CATS).map(c => `<option value="${c}">${c}</option>`).join('');
+};
+
+const saveTx = async (e) => {
+  e.preventDefault();
+  const amountStr = document.getElementById('tx-amount').value.replace(/\./g, '');
+  const idVal = document.getElementById('tx-id').value;
+  
+  const data = {
+    type: document.getElementById('tx-type').value,
+    amount: parseInt(amountStr),
+    name: document.getElementById('tx-name').value,
+    category: document.getElementById('tx-cat').value,
+    date: document.getElementById('tx-date').value
+  };
+  
+  if (idVal) {
+    data.id = parseInt(idVal);
+    await dbPut('transactions', data);
+    showToast('Transaksi diperbarui!');
+  } else {
+    await dbAdd('transactions', data);
+    showToast('Transaksi ditambahkan!');
+  }
+  
+  closeModal('tx'); e.target.reset(); document.getElementById('tx-id').value = ''; document.getElementById('tx-date').value = todayStr();
+  renderAll();
+};
+
+const editTx = async (id) => {
+  const txs = await dbGetAll('transactions');
+  const t = txs.find(x => x.id === id);
+  if(!t) return;
+  document.getElementById('tx-id').value = t.id;
+  document.getElementById('tx-type').value = t.type;
+  updateCat();
+  document.getElementById('tx-cat').value = t.category;
+  document.getElementById('tx-amount').value = new Intl.NumberFormat('id-ID').format(t.amount);
+  document.getElementById('tx-name').value = t.name;
+  document.getElementById('tx-date').value = t.date;
+  openModal('tx');
+};
+
+const hapusTx = async (id) => { 
+  if(confirm('Hapus transaksi ini?')) { 
+    await dbDelete('transactions', id); showToast('Transaksi dihapus.', 'danger'); renderAll(); 
+  } 
+};
+
+// --- CRUD GOALS ---
+const editGoal = async (slot) => {
+  const goals = await dbGetAll('goals');
+  const g = goals.find(x => x.slot === slot);
+  document.getElementById('g-slot').value = slot;
+  document.getElementById('g-title').value = g ? g.title : '';
+  document.getElementById('g-target').value = g ? new Intl.NumberFormat('id-ID').format(g.target) : '';
+  document.getElementById('g-current').value = g ? new Intl.NumberFormat('id-ID').format(g.current) : '0';
+  openModal('goal');
+};
+
+const saveGoal = async (e) => {
+  e.preventDefault();
+  await dbPut('goals', {
+    slot: parseInt(document.getElementById('g-slot').value),
+    title: document.getElementById('g-title').value,
+    target: parseInt(document.getElementById('g-target').value.replace(/\./g, '')),
+    current: parseInt(document.getElementById('g-current').value.replace(/\./g, ''))
+  });
+  closeModal('goal'); showToast('Target disimpan!'); renderAll();
+};
+
+// --- GAMBAR & PROFIL ---
+const uploadImage = (type, input) => {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 400;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const base64 = canvas.toDataURL('image/jpeg', 0.8);
+      dbPut('settings', { key: type, value: { ...getSettings(type), img: base64 } }).then(() => {
+        showToast('Foto diupload!'); renderAll();
+      });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+};
+
+let cachedSettings = {};
+const getSettings = (key) => cachedSettings[key] || {};
+
+const saveBiodata = async () => {
+  await dbPut('settings', { key: 'profile', value: { name: document.getElementById('prof-name').value, bio: document.getElementById('prof-bio').value, img: getSettings('profile').img } });
+  await dbPut('settings', { key: 'support', value: { name: document.getElementById('sup-name').value, msg: document.getElementById('sup-msg').value, img: getSettings('support').img } });
+  const settings = await dbGetAll('settings');
+  settings.forEach(s => cachedSettings[s.key] = s.value);
+  showToast('Biodata tersimpan.'); renderAll();
+};
+
+const saveDoc = (e) => {
+  e.preventDefault();
+  const file = document.getElementById('doc-file').files[0];
+  const title = document.getElementById('doc-title').value;
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 600;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      await dbAdd('docs', { title: title, img: canvas.toDataURL('image/jpeg', 0.8), date: todayStr() });
+      closeModal('doc'); e.target.reset(); showToast('Dokumentasi diunggah!'); renderAll();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+// --- BACKUP & RESTORE ---
+const exportData = async () => {
+  const data = {
+    transactions: await dbGetAll('transactions'),
+    goals: await dbGetAll('goals'),
+    settings: await dbGetAll('settings'),
+    docs: await dbGetAll('docs')
+  };
+  const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+  const a = document.createElement('a'); a.href = str; a.download = "delvino_backup.json"; a.click();
+  showToast('Backup berhasil diunduh!');
+};
+
+const importData = (input) => {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.transactions) throw new Error("Format file tidak valid");
+      
+      if(!confirm("PERINGATAN: Ini akan menghapus semua data kamu saat ini dan menggantinya dengan data dari file backup. Lanjutkan?")) return;
+      
+      await dbClear('transactions');
+      await dbClear('goals');
+      await dbClear('settings');
+      await dbClear('docs');
+      
+      for(let t of data.transactions) await dbPut('transactions', t);
+      for(let g of data.goals) await dbPut('goals', g);
+      for(let s of data.settings) await dbPut('settings', s);
+      for(let d of data.docs) await dbPut('docs', d);
+      
+      showToast('Data berhasil dipulihkan!');
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+      showToast('Gagal memulihkan: File tidak valid.', 'danger');
+    }
+  };
+  reader.readAsText(file);
+  input.value = ''; 
+};
+
+// --- BOOTSTRAPPING ---
+document.addEventListener('DOMContentLoaded', async () => {
+  await initDB();
+  
+  const settings = await dbGetAll('settings');
+  settings.forEach(s => cachedSettings[s.key] = s.value);
+  
+  document.getElementById('tx-date').value = todayStr();
+  updateCat();
+  
+  loadDailyQuote();
+  loadAyatAman();
+  
+  await renderAll();
+
+  const loadingEl = document.getElementById('loading');
+  if(loadingEl) loadingEl.style.display = 'none';
+  
+  const appContent = document.getElementById('app-content');
+  if(appContent) appContent.style.display = 'block';
+
+  window.addEventListener('resize', () => dbGetAll('transactions').then(renderChart));
+});
